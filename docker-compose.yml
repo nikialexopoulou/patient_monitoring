@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: patient_monitoring_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: patient_monitoring
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/postgres/seed.sql:/seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d patient_monitoring"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    container_name: patient_monitoring_web
+    restart: unless-stopped
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_DB: patient_monitoring
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
